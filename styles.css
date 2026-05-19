@@ -36,3 +36,43 @@
 	width: 14px;
 	height: 14px;
 }
+
+.source-selector-modal .modal-content {
+	max-width: 700px;
+}
+
+.source-selector-modal .source-selector-hint {
+	margin-bottom: 16px;
+	opacity: 0.8;
+}
+
+.source-selector-modal .source-list {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	max-height: 400px;
+	overflow-y: auto;
+}
+
+.source-selector-modal .source-item {
+	padding: 8px;
+	border-radius: 8px;
+	transition: background-color 0.2s;
+}
+
+.source-selector-modal .source-item:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.source-selector-modal .source-name {
+	font-size: var(--font-ui-smaller);
+	margin-top: 6px;
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.audio-mode-display {
+	text-align: center;
+}

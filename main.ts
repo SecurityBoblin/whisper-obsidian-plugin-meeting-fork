@@ -29,6 +29,7 @@ export default class Whisper extends Plugin {
 		this.timer = new Timer();
 		this.audioHandler = new AudioHandler(this);
 		this.recorder = new NativeAudioRecorder();
+		this.recorder.setApp(this.app);
 		const deviceId =
 			this.settings.audioDeviceId === "default"
 				? null

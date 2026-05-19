@@ -1,5 +1,6 @@
-import { Notice } from "obsidian";
+import { App, Notice } from "obsidian";
 import { AudioSourceMode } from "./SettingsManager";
+import { SourceSelectorModal, DesktopSource } from "./SourceSelectorModal";
 
 export interface AudioRecorder {
 	startRecording(): Promise<void>;
@@ -42,6 +43,7 @@ export class NativeAudioRecorder implements AudioRecorder {
 	private audioSourceMode: AudioSourceMode = "microphone";
 	private audioContext: AudioContext | null = null;
 	private activeStreams: MediaStream[] = [];
+	private app: App | null = null;
 
 	getRecordingState(): "inactive" | "recording" | "paused" | undefined {
 		return this.recorder?.state;
@@ -63,6 +65,10 @@ export class NativeAudioRecorder implements AudioRecorder {
 		return this.audioSourceMode;
 	}
 
+	setApp(app: App): void {
+		this.app = app;
+	}
+
 	private async startMicrophoneCapture(): Promise<AudioCaptureResult> {
 		const audioConstraints =
 			this.deviceId && this.deviceId !== "default"
@@ -76,20 +82,110 @@ export class NativeAudioRecorder implements AudioRecorder {
 		return { stream, videoTracks: [] };
 	}
 
+	private isElectron(): boolean {
+		return typeof process !== "undefined" && process.versions && !!process.versions.electron;
+	}
+
+	private async getDesktopCapturer(): Promise<{
+		getSources: (options: { types: string[]; thumbnailSize?: { width: number; height: number } }) => Promise<DesktopSource[]>;
+	} | null> {
+		if (!this.isElectron()) {
+			return null;
+		}
+
+		try {
+			const { desktopCapturer } = require("electron");
+			return desktopCapturer;
+		} catch (e) {
+			console.error("Failed to load desktopCapturer:", e);
+			return null;
+		}
+	}
+
 	private async startSystemAudioCapture(): Promise<AudioCaptureResult> {
-		new Notice("Select a tab, window, or screen to capture audio from");
-		
-		const stream = await navigator.mediaDevices.getDisplayMedia({
-			video: true,
-			audio: true,
-		});
+		const desktopCapturer = await this.getDesktopCapturer();
+
+		if (!desktopCapturer) {
+			throw new Error(
+				"System audio capture requires the desktop version of Obsidian. " +
+				"On mobile, only microphone recording is available."
+			);
+		}
+
+		new Notice("Loading available sources...");
+
+		let sources: DesktopSource[];
+		try {
+			const electronSources = await desktopCapturer.getSources({
+				types: ["window", "screen"],
+				thumbnailSize: { width: 400, height: 250 },
+			});
+			sources = electronSources;
+		} catch (e) {
+			throw new Error(
+				"Failed to enumerate capture sources. Make sure Obsidian has screen recording permissions."
+			);
+		}
+
+		if (sources.length === 0) {
+			throw new Error(
+				"No windows or screens found to capture. Open an application window and try again."
+			);
+		}
+
+		if (!this.app) {
+			throw new Error("App instance not set. Call setApp() before recording.");
+		}
+
+		const selectedSource = await SourceSelectorModal.selectSource(this.app, sources);
+
+		if (!selectedSource) {
+			throw new Error("Source selection cancelled");
+		}
+
+		new Notice(`Capturing from: ${selectedSource.name.substring(0, 30)}...`);
+
+		const constraints: MediaStreamConstraints = {
+			audio: {
+				mandatory: {
+					chromeMediaSource: "desktop",
+					chromeMediaSourceId: selectedSource.id,
+				},
+			} as any,
+			video: {
+				mandatory: {
+					chromeMediaSource: "desktop",
+					chromeMediaSourceId: selectedSource.id,
+				},
+			} as any,
+		};
+
+		let stream: MediaStream;
+		try {
+			stream = await navigator.mediaDevices.getUserMedia(constraints);
+		} catch (e) {
+			const errMsg = e instanceof Error ? e.message : String(e);
+			if (errMsg.includes("Permission")) {
+				throw new Error(
+					"Permission denied. Grant Obsidian screen recording access in System Settings > Privacy & Security > Screen Recording."
+				);
+			}
+			throw new Error(`Failed to capture from selected source: ${errMsg}`);
+		}
 
 		const audioTracks = stream.getAudioTracks();
 		const videoTracks = stream.getVideoTracks();
 
 		if (audioTracks.length === 0) {
 			videoTracks.forEach((track) => track.stop());
-			throw new Error("No audio track available in the selected source. Please select a source with audio (e.g., a browser tab with audio playing).");
+			stream.getTracks().forEach((track) => track.stop());
+			throw new Error(
+				"No audio in selected source.\n\n" +
+				"Tips:\n" +
+				"• Select a window playing audio (browser tab, media player)\n" +
+				"• On Windows: Make sure 'Share audio' was enabled\n" +
+				"• Some apps don't output audio through the capture API"
+			);
 		}
 
 		const audioOnlyStream = new MediaStream(audioTracks);
@@ -143,10 +239,10 @@ export class NativeAudioRecorder implements AudioRecorder {
 				case "both":
 					const micCapture = await this.startMicrophoneCapture();
 					const sysCapture = await this.startSystemAudioCapture();
-					
+
 					this.activeStreams.push(micCapture.stream, sysCapture.stream);
 					videoTracksToStop = [...micCapture.videoTracks, ...sysCapture.videoTracks];
-					
+
 					audioStream = this.mixAudioStreams(
 						micCapture.stream,
 						sysCapture.stream
@@ -184,18 +280,14 @@ export class NativeAudioRecorder implements AudioRecorder {
 
 		} catch (err) {
 			this.cleanupStreams();
-			
+
 			if (err instanceof Error) {
 				if (err.name === "NotAllowedError") {
-					if (this.audioSourceMode === "system" || this.audioSourceMode === "both") {
-						new Notice("Permission denied. Please allow screen/audio sharing to capture system audio.");
-					} else {
-						new Notice("Microphone permission denied");
-					}
-				} else if (err.message.includes("No audio track")) {
-					new Notice(err.message);
+					new Notice("Microphone permission denied");
+				} else if (err.message.includes("cancelled")) {
+					new Notice("Recording cancelled");
 				} else {
-					new Notice(`Could not start recording: ${err.message}`);
+					new Notice(err.message);
 				}
 			} else {
 				new Notice("Could not start recording");

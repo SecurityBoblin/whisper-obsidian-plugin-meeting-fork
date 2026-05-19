@@ -323,7 +323,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		new Setting(this.containerEl)
 			.setName("System Audio Capture")
 			.setDesc(
-				"When recording, you'll be prompted to select a tab, window, or screen to capture audio from. For online meetings, select the meeting tab/window. Tip: On macOS, system audio capture requires macOS 13+ or a virtual audio device like BlackHole."
+				"When recording, select a tab/window with audio playing. " +
+				"If the dialog doesn't appear or shows 'not supported', your Obsidian version may not support this feature. " +
+				"Alternative: Install a virtual audio device (VB-Audio Cable on Windows, BlackHole on macOS) and select it as your microphone input."
 			);
 	}
 
