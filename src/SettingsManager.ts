@@ -41,11 +41,11 @@ export interface WhisperSettings {
 	cursorContext: boolean;
 	// Recording
 	audioDeviceId: string;
-	audioSourceMode: AudioSourceMode;
 	saveAudioFile: boolean;
 	audioSavePath: string;
 	// Output
 	createNoteFile: boolean;
+	pasteAtCursor: boolean;
 	noteSavePath: string;
 	noteFilenameTemplate: string;
 	noteTemplate: string;
@@ -84,10 +84,10 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	responseFormat: "json",
 	cursorContext: false,
 	audioDeviceId: "default",
-	audioSourceMode: "microphone",
 	saveAudioFile: true,
 	audioSavePath: "",
 	createNoteFile: true,
+	pasteAtCursor: true,
 	noteSavePath: "",
 	noteFilenameTemplate: "{{datetime}}",
 	noteTemplate: "![[{{audioFile}}]]\n{{transcription}}",

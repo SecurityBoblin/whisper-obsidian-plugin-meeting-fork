@@ -1,11 +1,11 @@
 {
-  "id": "whisper",
-  "name": "Whisper",
-  "version": "1.9.1",
+  "id": "whisper-system-audio",
+  "name": "Whisper + System Audio",
+  "version": "1.0.0",
   "minAppVersion": "1.12.7",
-  "description": "Speech-to-text in Obsidian using OpenAI Whisper",
-  "author": "Nik Danilov",
-  "authorUrl": "https://nikdanilov.com",
-  "fundingUrl": "https://ko-fi.com/nikdanilov",
+  "description": "Speech-to-text in Obsidian using OpenAI Whisper, with system audio capture for transcribing meetings",
+  "author": "SecurityBoblin (forked from Nik Danilov)",
+  "authorUrl": "https://github.com/SecurityBoblin/whisper-obsidian-plugin",
+  "fundingUrl": "https://github.com/nikdanilov/whisper-obsidian-plugin",
   "isDesktopOnly": true
 }

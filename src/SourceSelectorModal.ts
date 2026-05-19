@@ -6,6 +6,16 @@ export interface DesktopSource {
 	thumbnail: string;
 }
 
+function nativeImageToDataUrl(thumbnail: any): string {
+	if (typeof thumbnail === "string") {
+		return thumbnail;
+	}
+	if (thumbnail && typeof thumbnail.toDataURL === "function") {
+		return thumbnail.toDataURL();
+	}
+	return "";
+}
+
 export class SourceSelectorModal extends Modal {
 	private sources: DesktopSource[];
 	private selectedSource: DesktopSource | null = null;
@@ -47,15 +57,18 @@ export class SourceSelectorModal extends Modal {
 		for (const source of this.sources) {
 			const itemEl = listEl.createDiv({ cls: "source-item" });
 
+			const thumbnailUrl = nativeImageToDataUrl(source.thumbnail);
+			
 			const imgEl = itemEl.createEl("img", {
 				cls: "source-thumbnail",
-				attr: { src: source.thumbnail },
+				attr: thumbnailUrl ? { src: thumbnailUrl } : {},
 			});
 			imgEl.style.width = "200px";
 			imgEl.style.height = "125px";
 			imgEl.style.objectFit = "cover";
 			imgEl.style.borderRadius = "4px";
 			imgEl.style.border = "2px solid transparent";
+			imgEl.style.backgroundColor = "var(--background-modifier-border)";
 
 			itemEl.createEl("div", {
 				text: source.name,

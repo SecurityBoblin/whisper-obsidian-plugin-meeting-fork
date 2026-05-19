@@ -3,7 +3,7 @@ import { Timer } from "src/Timer";
 import { Controls } from "src/Controls";
 import { AudioHandler } from "src/AudioHandler";
 import { WhisperSettingsTab } from "src/WhisperSettingsTab";
-import { SettingsManager, PluginSettings } from "src/SettingsManager";
+import { SettingsManager, PluginSettings, AudioSourceMode } from "src/SettingsManager";
 import { NativeAudioRecorder } from "src/AudioRecorder";
 import { RecordingStatus, StatusBar } from "src/StatusBar";
 import { getExtensionFromMimeType } from "src/utils";
@@ -35,7 +35,6 @@ export default class Whisper extends Plugin {
 				? null
 				: this.settings.audioDeviceId;
 		this.recorder.setDeviceId(deviceId);
-		this.recorder.setAudioSourceMode(this.settings.audioSourceMode);
 
 		this.statusBar = new StatusBar(this);
 
@@ -76,7 +75,7 @@ export default class Whisper extends Plugin {
 					return;
 
 				menu.addItem((item) => {
-					item.setTitle("Transcribe audio file 🔊")
+					item.setTitle("Transcribe audio file")
 						.setIcon("document")
 						.onClick(async () => {
 							const audioBlob = new Blob([
@@ -101,7 +100,7 @@ export default class Whisper extends Plugin {
 
 	// --- Recording state transitions (single source of truth) ---
 
-	async startRecording() {
+	async startRecording(mode: AudioSourceMode = "both") {
 		if (
 			this.statusBar.status === RecordingStatus.Recording ||
 			this.statusBar.status === RecordingStatus.Paused
@@ -110,7 +109,7 @@ export default class Whisper extends Plugin {
 			return;
 		}
 		try {
-			await this.recorder.startRecording();
+			await this.recorder.startRecording(mode);
 			this.statusBar.updateStatus(RecordingStatus.Recording);
 		} catch (err) {
 			this.statusBar.updateStatus(RecordingStatus.Idle);
@@ -126,7 +125,8 @@ export default class Whisper extends Plugin {
 		}
 		this.statusBar.updateStatus(RecordingStatus.Processing);
 		const audioBlob = await this.recorder.stopRecording();
-		const extension = getExtensionFromMimeType(this.recorder.getMimeType());
+		const mimeType = this.recorder.getMimeType();
+		const extension = getExtensionFromMimeType(mimeType);
 		const fileName = `${new Date()
 			.toISOString()
 			.replace(/[:.]/g, "-")}.${extension}`;
@@ -168,20 +168,55 @@ export default class Whisper extends Plugin {
 	// --- Commands ---
 
 	addCommands() {
+		// Record: Microphone + System Audio (default)
 		this.addCommand({
-			id: "start-stop-recording",
-			name: "Start/stop recording",
+			id: "record-both",
+			name: "Record: Microphone + System Audio",
 			callback: async () => {
 				if (
 					this.statusBar.status !== RecordingStatus.Recording &&
 					this.statusBar.status !== RecordingStatus.Paused
 				) {
-					await this.startRecording();
+					await this.startRecording("both");
 				} else {
 					await this.stopRecording();
 				}
 			},
 			hotkeys: [{ modifiers: ["Alt"], key: "Q" }],
+		});
+
+		// Record: Microphone only
+		this.addCommand({
+			id: "record-microphone",
+			name: "Record: Microphone",
+			callback: async () => {
+				if (
+					this.statusBar.status !== RecordingStatus.Recording &&
+					this.statusBar.status !== RecordingStatus.Paused
+				) {
+					await this.startRecording("microphone");
+				} else {
+					await this.stopRecording();
+				}
+			},
+			hotkeys: [{ modifiers: ["Alt", "Shift"], key: "Q" }],
+		});
+
+		// Record: System Audio only
+		this.addCommand({
+			id: "record-system",
+			name: "Record: System Audio",
+			callback: async () => {
+				if (
+					this.statusBar.status !== RecordingStatus.Recording &&
+					this.statusBar.status !== RecordingStatus.Paused
+				) {
+					await this.startRecording("system");
+				} else {
+					await this.stopRecording();
+				}
+			},
+			hotkeys: [{ modifiers: ["Alt", "Ctrl"], key: "Q" }],
 		});
 
 		this.addCommand({
@@ -232,7 +267,8 @@ export default class Whisper extends Plugin {
 
 			switch (command) {
 				case "start":
-					await this.startRecording();
+					const mode = (params.mode as AudioSourceMode) || "both";
+					await this.startRecording(mode);
 					break;
 				case "stop":
 					await this.stopRecording();
@@ -244,7 +280,7 @@ export default class Whisper extends Plugin {
 					await this.cancelRecording();
 					break;
 				default:
-					new Notice(`✘ Unknown whisper command: ${command}`);
+					new Notice(`Unknown whisper command: ${command}`);
 			}
 		});
 	}

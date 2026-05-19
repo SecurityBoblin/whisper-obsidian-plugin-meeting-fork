@@ -5,7 +5,6 @@ import {
 	PostProcessingProvider,
 	PROVIDER_URLS,
 	PROVIDER_DEFAULT_MODELS,
-	AudioSourceMode,
 } from "./SettingsManager";
 
 export class WhisperSettingsTab extends PluginSettingTab {
@@ -42,19 +41,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		// --- Recording ---
 		new Setting(containerEl).setName("Recording").setHeading();
-		void this.createAudioSourceModeSetting();
-		if (
-			this.plugin.settings.audioSourceMode === "microphone" ||
-			this.plugin.settings.audioSourceMode === "both"
-		) {
-			void this.createAudioDeviceSetting();
-		}
-		if (
-			this.plugin.settings.audioSourceMode === "system" ||
-			this.plugin.settings.audioSourceMode === "both"
-		) {
-			this.createSystemAudioGuideSetting();
-		}
+		this.createKeybindsInfoSetting();
+		void this.createAudioDeviceSetting();
+		this.createSystemAudioGuideSetting();
 		this.createSaveAudioFileToggleSetting();
 		if (this.plugin.settings.saveAudioFile) {
 			this.createSaveAudioFilePathSetting();
@@ -68,6 +57,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.createNoteFilenameTemplateSetting();
 			this.createNoteTemplateSetting();
 		}
+		this.createPasteAtCursorSetting();
 
 		// --- Post-Processing ---
 		new Setting(containerEl).setName("Post-processing").setHeading();
@@ -288,35 +278,16 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		});
 	}
 
-	private async createAudioSourceModeSetting(): Promise<void> {
-		const modeOptions: Record<AudioSourceMode, string> = {
-			microphone: "Microphone",
-			system: "System Audio (speakers/headphones)",
-			both: "Microphone + System Audio",
-		};
-
+	private createKeybindsInfoSetting(): void {
 		new Setting(this.containerEl)
-			.setName("Audio Source")
+			.setName("Recording Keybinds")
 			.setDesc(
-				"Choose what audio to capture for transcription. System audio lets you transcribe online meetings, videos, and other app audio."
-			)
-			.addDropdown((dropdown) => {
-				for (const [value, label] of Object.entries(modeOptions)) {
-					dropdown.addOption(value, label);
-				}
-				dropdown
-					.setValue(this.plugin.settings.audioSourceMode)
-					.onChange(async (value) => {
-						const mode = value as AudioSourceMode;
-						this.plugin.settings.audioSourceMode = mode;
-						await this.settingsManager.saveSettings(
-							this.plugin.settings
-						);
-						this.plugin.recorder.setAudioSourceMode(mode);
-						this.plugin.statusBar.setAudioSourceMode(mode);
-						this.display();
-					});
-			});
+				"Use different hotkeys to choose your audio source:\n" +
+				"• Alt+Q — Record Microphone + System Audio (meetings)\n" +
+				"• Alt+Shift+Q — Record Microphone only\n" +
+				"• Alt+Ctrl+Q — Record System Audio only (videos, music)\n\n" +
+				"Customize these in Settings → Hotkeys"
+			);
 	}
 
 	private createSystemAudioGuideSetting(): void {
@@ -405,6 +376,20 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						}
 						await this.save();
 						this.display();
+					});
+			});
+	}
+
+	private createPasteAtCursorSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Paste at cursor")
+			.setDesc("Also insert the transcription at your cursor position in the active note")
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.pasteAtCursor)
+					.onChange(async (value) => {
+						this.plugin.settings.pasteAtCursor = value;
+						await this.save();
 					});
 			});
 	}

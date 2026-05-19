@@ -1,5 +1,4 @@
 import { Plugin } from "obsidian";
-import { AudioSourceMode } from "./SettingsManager";
 
 export enum RecordingStatus {
 	Idle = "idle",
@@ -13,16 +12,10 @@ export class StatusBar {
 	statusBarItem: HTMLElement | null = null;
 	status: RecordingStatus = RecordingStatus.Idle;
 	private listeners: Array<(status: RecordingStatus) => void> = [];
-	private currentMode: AudioSourceMode = "microphone";
 
 	constructor(plugin: Plugin) {
 		this.plugin = plugin;
 		this.statusBarItem = this.plugin.addStatusBarItem();
-		this.updateStatusBarItem();
-	}
-
-	setAudioSourceMode(mode: AudioSourceMode): void {
-		this.currentMode = mode;
 		this.updateStatusBarItem();
 	}
 
@@ -40,28 +33,15 @@ export class StatusBar {
 		this.listeners.forEach((fn) => fn(status));
 	}
 
-	private getModeIndicator(): string {
-		switch (this.currentMode) {
-			case "system":
-				return "🔊 ";
-			case "both":
-				return "🎤🔊 ";
-			case "microphone":
-			default:
-				return "🎤 ";
-		}
-	}
-
 	updateStatusBarItem() {
 		if (this.statusBarItem) {
-			const modeIcon = this.getModeIndicator();
 			switch (this.status) {
 				case RecordingStatus.Recording:
-					this.statusBarItem.textContent = `${modeIcon}Recording...`;
+					this.statusBarItem.textContent = "Recording...";
 					this.statusBarItem.style.color = "red";
 					break;
 				case RecordingStatus.Paused:
-					this.statusBarItem.textContent = `${modeIcon}Paused`;
+					this.statusBarItem.textContent = "Paused";
 					this.statusBarItem.style.color = "yellow";
 					break;
 				case RecordingStatus.Processing:
@@ -70,7 +50,7 @@ export class StatusBar {
 					break;
 				case RecordingStatus.Idle:
 				default:
-					this.statusBarItem.textContent = `${modeIcon}Whisper`;
+					this.statusBarItem.textContent = "Whisper";
 					this.statusBarItem.style.color = "green";
 					break;
 			}

@@ -1,16 +1,16 @@
 import Whisper from "main";
-import { ButtonComponent, Modal, Setting } from "obsidian";
+import { ButtonComponent, Modal } from "obsidian";
 import { RecordingStatus } from "./StatusBar";
-import { AudioSourceMode } from "./SettingsManager";
 
 export class Controls extends Modal {
 	private plugin: Whisper;
-	private startButton: ButtonComponent;
+	private startMicButton: ButtonComponent;
+	private startSystemButton: ButtonComponent;
+	private startBothButton: ButtonComponent;
 	private pauseButton: ButtonComponent;
 	private stopButton: ButtonComponent;
 	private cancelButton: ButtonComponent;
 	private timerDisplay: HTMLElement;
-	private modeDisplay: HTMLElement;
 	private statusListener: () => void;
 
 	constructor(plugin: Whisper) {
@@ -25,20 +25,29 @@ export class Controls extends Modal {
 			this.updateTimerDisplay();
 		});
 
-		this.modeDisplay = this.contentEl.createEl("div", {
-			cls: "audio-mode-display",
-		});
-		this.updateModeDisplay();
-
 		const buttonGroupEl = this.contentEl.createEl("div", {
 			cls: "button-group",
 		});
 
-		this.startButton = new ButtonComponent(buttonGroupEl);
-		this.startButton
-			.setIcon("circle")
-			.setButtonText(" Record")
-			.onClick(() => this.plugin.startRecording())
+		this.startMicButton = new ButtonComponent(buttonGroupEl);
+		this.startMicButton
+			.setIcon("mic")
+			.setButtonText(" Mic")
+			.onClick(() => this.plugin.startRecording("microphone"))
+			.buttonEl.addClass("button-component");
+
+		this.startSystemButton = new ButtonComponent(buttonGroupEl);
+		this.startSystemButton
+			.setIcon("volume-up")
+			.setButtonText(" System")
+			.onClick(() => this.plugin.startRecording("system"))
+			.buttonEl.addClass("button-component");
+
+		this.startBothButton = new ButtonComponent(buttonGroupEl);
+		this.startBothButton
+			.setIcon("mic")
+			.setButtonText(" Both")
+			.onClick(() => this.plugin.startRecording("both"))
 			.buttonEl.addClass("button-component");
 
 		this.pauseButton = new ButtonComponent(buttonGroupEl);
@@ -71,14 +80,12 @@ export class Controls extends Modal {
 		this.statusListener = () => {
 			this.resetGUI();
 			this.updateTimerDisplay();
-			this.updateModeDisplay();
 		};
 	}
 
 	onOpen() {
 		this.resetGUI();
 		this.updateTimerDisplay();
-		this.updateModeDisplay();
 		this.plugin.statusBar.onChange(this.statusListener);
 	}
 
@@ -90,28 +97,25 @@ export class Controls extends Modal {
 		this.timerDisplay.textContent = this.plugin.timer.getFormattedTime();
 	}
 
-	private updateModeDisplay(): void {
-		const modeLabels: Record<AudioSourceMode, string> = {
-			microphone: "🎤 Microphone",
-			system: "🔊 System Audio",
-			both: "🎤🔊 Mic + System Audio",
-		};
-		const mode = this.plugin.recorder.getAudioSourceMode();
-		this.modeDisplay.textContent = `Source: ${modeLabels[mode]}`;
-		this.modeDisplay.style.opacity = "0.7";
-		this.modeDisplay.style.fontSize = "0.9em";
-		this.modeDisplay.style.marginBottom = "10px";
-	}
-
 	resetGUI() {
 		const status = this.plugin.statusBar.status;
 		const isIdle = status === RecordingStatus.Idle;
 		const isPaused = status === RecordingStatus.Paused;
 
-		this.startButton.buttonEl.style.display = isIdle ? "" : "none";
-		this.startButton.buttonEl.empty();
-		this.startButton.setIcon("circle");
-		this.startButton.buttonEl.appendText(" Record");
+		this.startMicButton.buttonEl.style.display = isIdle ? "" : "none";
+		this.startMicButton.buttonEl.empty();
+		this.startMicButton.setIcon("mic");
+		this.startMicButton.buttonEl.appendText(" Mic");
+
+		this.startSystemButton.buttonEl.style.display = isIdle ? "" : "none";
+		this.startSystemButton.buttonEl.empty();
+		this.startSystemButton.setIcon("volume-up");
+		this.startSystemButton.buttonEl.appendText(" System");
+
+		this.startBothButton.buttonEl.style.display = isIdle ? "" : "none";
+		this.startBothButton.buttonEl.empty();
+		this.startBothButton.setIcon("mic");
+		this.startBothButton.buttonEl.appendText(" Both");
 
 		this.pauseButton.buttonEl.style.display = isIdle ? "none" : "";
 		this.pauseButton.buttonEl.empty();

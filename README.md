@@ -1,55 +1,124 @@
-# Whisper — Speech-to-text for Obsidian
+# Whisper + System Audio — Speech-to-text for Obsidian
 
-Record or upload audio, transcribe with [Whisper](https://openai.com/research/whisper), and optionally post-process the result with an LLM. Works on desktop and mobile.
+> **Fork of [nikdanilov/whisper-obsidian-plugin](https://github.com/nikdanilov/whisper-obsidian-plugin)**
 
-Works with OpenAI, Groq, Azure, or any other Whisper-compatible API.
+Record or upload audio, transcribe with [Whisper](https://openai.com/research/whisper), and optionally post-process the result with an LLM.
+
+**This fork adds system audio capture** — transcribe online meetings, videos, music, and any app audio playing on your computer.
+
+## Why This Fork?
+
+The original plugin only supports microphone input. This fork adds native system audio capture using Electron's `desktopCapturer` API, enabling transcription of:
+
+- Online meetings (Zoom, Teams, Meet, etc.)
+- Videos and presentations
+- Music and podcasts
+- Any app audio
+
+Since this feature requires Electron APIs and changes the core recording flow, I created a fork rather than submitting a PR that would significantly alter the original plugin's scope.
+
+**Changes from upstream:**
+- Added system audio capture via `@electron/remote.desktopCapturer`
+- Three recording modes via separate hotkeys (no settings toggle needed)
+- Desktop-only (mobile not supported)
+- Added "Paste at cursor" toggle setting
+- Source selector modal with window/screen thumbnails
 
 ## Quick Start
 
-1. Install from **Settings → Community Plugins** → search "Whisper"
+1. Install from **Settings → Community Plugins** → search "Whisper + System Audio" (or install manually)
 2. Add your API key in the plugin settings
-3. Open a note, press `Alt + Q`, speak, press `Alt + Q` again
+3. Choose your recording mode:
+   - **Alt+Q** — Record Microphone + System Audio (for meetings)
+   - **Alt+Shift+Q** — Record Microphone only
+   - **Alt+Ctrl+Q** — Record System Audio only (for videos/music)
+4. Press the hotkey again to stop and transcribe
 
-The transcription appears at your cursor.
+The transcription appears in a new note file.
+
+## Recording Modes
+
+| Hotkey | Mode | Use Case |
+|--------|------|----------|
+| `Alt+Q` | Microphone + System Audio | Online meetings where you speak and want to capture others |
+| `Alt+Shift+Q` | Microphone only | Voice notes, dictation |
+| `Alt+Ctrl+Q` | System Audio only | Transcribing videos, music, or meetings where you don't speak |
+
+Customize these in **Settings → Hotkeys**.
+
+## System Audio Capture
+
+When using system audio modes, you'll see a window picker showing all available windows and screens. Select the one playing audio you want to capture.
+
+**Tips:**
+- Select a specific window (browser tab, media player) rather than "Entire Screen" for best results
+- Make sure audio is playing when you start recording
+- On macOS, you may need to grant screen recording permissions
+
+**Platform Support:**
+| Platform | Support |
+|----------|---------|
+| Windows | Full support |
+| macOS 13+ | Supported |
+| macOS < 13 | Requires virtual audio device (BlackHole) |
+| Linux | Supported via PipeWire |
+| Mobile | Not supported (desktop-only plugin) |
+
+## All Features
+
+### Recording
+- Three recording modes with dedicated hotkeys
+- Pause/resume recordings
+- Cancel and discard
+- Microphone device selection
+- System audio source picker with thumbnails
+
+### Transcription
+- Works with OpenAI, Groq, Azure, or any Whisper-compatible API
+- Language auto-detection or manual selection
+- Custom prompts for better accuracy with specific terms
+- Temperature and response format settings
+
+### Post-Processing
+- Clean up transcriptions with Claude, GPT, or custom endpoints
+- Auto-generate descriptive filenames
+- Keep original transcription alongside processed version
+
+### Output
+- Save audio files to vault
+- Create note files with templates
+- Optional paste at cursor position
+- Template variables: `{{date}}`, `{{time}}`, `{{datetime}}`, `{{title}}`, `{{transcription}}`, `{{audioFile}}`
 
 ## Usage
 
-**Record** — click the mic icon in the sidebar, or press `Alt + Q` to start/stop.
+**Record** — Use hotkeys or command palette.
 
-**Upload** — command palette → *Upload audio file* (mp3, mp4, m4a, wav, webm, ogg).
+**Upload** — Command palette → *Upload audio file* (mp3, mp4, m4a, wav, webm, ogg).
 
-**Right-click** — right-click any audio file in your vault → *Transcribe audio file*.
-
-All commands can be assigned custom hotkeys in Obsidian's hotkey settings:
-
-- Start/stop recording (`Alt + Q` by default)
-- Pause/resume recording
-- Open recording controls
-- Upload audio file
+**Right-click** — Right-click any audio file → *Transcribe audio file*.
 
 ### Automation
 
 Trigger from iOS Shortcuts, Alfred, or any tool that can open URLs:
 
 ```
-obsidian://whisper                 open controls
-obsidian://whisper?command=start   start recording
-obsidian://whisper?command=stop    stop and transcribe
-obsidian://whisper?command=pause   pause/resume
-obsidian://whisper?command=cancel  discard recording
+obsidian://whisper                          open controls
+obsidian://whisper?command=start            start recording (both)
+obsidian://whisper?command=start&mode=mic   start microphone only
+obsidian://whisper?command=start&mode=system start system audio only
+obsidian://whisper?command=stop             stop and transcribe
+obsidian://whisper?command=pause            pause/resume
+obsidian://whisper?command=cancel           discard recording
 ```
 
-## Post-Processing
+## Manual Installation
 
-Enable **Post-processing** in settings to run transcriptions through an LLM — fix grammar, remove filler words, format as markdown, extract action items.
-
-Supports Claude, GPT, or any OpenAI-compatible endpoint (Ollama, LM Studio, etc.).
-
-You can also enable **Auto-generate title** to create descriptive filenames for your notes.
+Download `manifest.json`, `main.js`, `styles.css` from [releases](https://github.com/SecurityBoblin/whisper-obsidian-plugin/releases) into `.obsidian/plugins/whisper-system-audio/` in your vault.
 
 ## Note Templates
 
-When **Create note file** is enabled, you can customize the filename and content using template variables:
+When **Create note file** is enabled:
 
 | Variable | Example |
 |---|---|
@@ -60,8 +129,7 @@ When **Create note file** is enabled, you can customize the filename and content
 | `{{time}}` | `14-30-00` |
 | `{{datetime}}` | `2026-04-05 14:30:00` |
 
-Example note template:
-
+Example template:
 ```
 # {{title}}
 ![[{{audioFile}}]]
@@ -69,18 +137,12 @@ Example note template:
 {{transcription}}
 ```
 
-Use `![[{{audioFile}}]]` to embed audio (playable) or `[[{{audioFile}}]]` to link.
+## Credits
 
-## Manual Installation
+This is a fork of [nikdanilov/whisper-obsidian-plugin](https://github.com/nikdanilov/whisper-obsidian-plugin) by [Nik Danilov](https://nikdanilov.com).
 
-Download `manifest.json`, `main.js`, `styles.css` from [releases](https://github.com/nikdanilov/whisper-obsidian-plugin/releases) into `.obsidian/plugins/whisper/` in your vault.
-
-## Contributing
-
-Issues and PRs welcome — [GitHub Issues](https://github.com/nikdanilov/whisper-obsidian-plugin/issues)
+The original plugin is excellent for voice transcription. This fork adds system audio capture for a specific use case (transcribing meetings).
 
 ---
 
-[Buy me a coffee](https://ko-fi.com/nikdanilov) · [@nikdanilov\_](https://twitter.com/nikdanilov_)
-
-[<img src="https://user-images.githubusercontent.com/14358394/115450238-f39e8100-a21b-11eb-89d0-fa4b82cdbce8.png" width="200">](https://ko-fi.com/nikdanilov)
+[Support the original author](https://ko-fi.com/nikdanilov) · [Original repo](https://github.com/nikdanilov/whisper-obsidian-plugin)

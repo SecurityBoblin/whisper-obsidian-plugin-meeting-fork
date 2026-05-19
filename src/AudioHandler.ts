@@ -254,20 +254,22 @@ export class AudioHandler {
 				);
 			}
 
-			// Paste at cursor if there's an active editor
-			const editor =
-				this.plugin.app.workspace.getActiveViewOfType(
-					MarkdownView
-				)?.editor;
-			if (editor) {
-				const cursorPosition = editor.getCursor();
-				editor.replaceRange(outputText, cursorPosition);
+			// Paste at cursor if setting is enabled
+			if (this.plugin.settings.pasteAtCursor) {
+				const editor =
+					this.plugin.app.workspace.getActiveViewOfType(
+						MarkdownView
+					)?.editor;
+				if (editor) {
+					const cursorPosition = editor.getCursor();
+					editor.replaceRange(outputText, cursorPosition);
 
-				const newPosition = {
-					line: cursorPosition.line,
-					ch: cursorPosition.ch + outputText.length,
-				};
-				editor.setCursor(newPosition);
+					const newPosition = {
+						line: cursorPosition.line,
+						ch: cursorPosition.ch + outputText.length,
+					};
+					editor.setCursor(newPosition);
+				}
 			}
 
 			new Notice("Transcription complete");

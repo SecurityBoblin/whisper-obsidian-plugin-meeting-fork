@@ -3,7 +3,7 @@ import { AudioSourceMode } from "./SettingsManager";
 import { SourceSelectorModal, DesktopSource } from "./SourceSelectorModal";
 
 export interface AudioRecorder {
-	startRecording(): Promise<void>;
+	startRecording(mode: AudioSourceMode): Promise<void>;
 	pauseRecording(): Promise<void>;
 	stopRecording(): Promise<Blob>;
 }
@@ -40,7 +40,6 @@ export class NativeAudioRecorder implements AudioRecorder {
 	private recorder: MediaRecorder | null = null;
 	private mimeType: string | undefined;
 	private deviceId: string | null = null;
-	private audioSourceMode: AudioSourceMode = "microphone";
 	private audioContext: AudioContext | null = null;
 	private activeStreams: MediaStream[] = [];
 	private app: App | null = null;
@@ -55,14 +54,6 @@ export class NativeAudioRecorder implements AudioRecorder {
 
 	setDeviceId(deviceId: string | null): void {
 		this.deviceId = deviceId;
-	}
-
-	setAudioSourceMode(mode: AudioSourceMode): void {
-		this.audioSourceMode = mode;
-	}
-
-	getAudioSourceMode(): AudioSourceMode {
-		return this.audioSourceMode;
 	}
 
 	setApp(app: App): void {
@@ -83,21 +74,42 @@ export class NativeAudioRecorder implements AudioRecorder {
 	}
 
 	private isElectron(): boolean {
-		return typeof process !== "undefined" && process.versions && !!process.versions.electron;
+		try {
+			const electronRequire = (window as any).require || require;
+			electronRequire("electron");
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	private async getDesktopCapturer(): Promise<{
 		getSources: (options: { types: string[]; thumbnailSize?: { width: number; height: number } }) => Promise<DesktopSource[]>;
 	} | null> {
-		if (!this.isElectron()) {
-			return null;
-		}
-
 		try {
-			const { desktopCapturer } = require("electron");
-			return desktopCapturer;
-		} catch (e) {
-			console.error("Failed to load desktopCapturer:", e);
+			const winRequire = (window as any).require;
+			
+			if (typeof winRequire !== "function") {
+				return null;
+			}
+			
+			const electron = winRequire("electron");
+			
+			if (electron && electron.desktopCapturer) {
+				return electron.desktopCapturer;
+			}
+			
+			try {
+				const remote = winRequire("@electron/remote");
+				if (remote && remote.desktopCapturer) {
+					return remote.desktopCapturer;
+				}
+			} catch {
+				// @electron/remote not available
+			}
+			
+			return null;
+		} catch {
 			return null;
 		}
 	}
@@ -107,8 +119,9 @@ export class NativeAudioRecorder implements AudioRecorder {
 
 		if (!desktopCapturer) {
 			throw new Error(
-				"System audio capture requires the desktop version of Obsidian. " +
-				"On mobile, only microphone recording is available."
+				"System audio capture is not available.\n\n" +
+				"This feature requires Obsidian desktop app.\n" +
+				"If you're on desktop, try restarting Obsidian."
 			);
 		}
 
@@ -118,7 +131,7 @@ export class NativeAudioRecorder implements AudioRecorder {
 		try {
 			const electronSources = await desktopCapturer.getSources({
 				types: ["window", "screen"],
-				thumbnailSize: { width: 400, height: 250 },
+				thumbnailSize: { width: 160, height: 100 },
 			});
 			sources = electronSources;
 		} catch (e) {
@@ -214,7 +227,7 @@ export class NativeAudioRecorder implements AudioRecorder {
 		return destination.stream;
 	}
 
-	async startRecording(): Promise<void> {
+	async startRecording(mode: AudioSourceMode): Promise<void> {
 		if (this.recorder) {
 			return;
 		}
@@ -223,7 +236,7 @@ export class NativeAudioRecorder implements AudioRecorder {
 			let audioStream: MediaStream;
 			let videoTracksToStop: MediaStreamTrack[] = [];
 
-			switch (this.audioSourceMode) {
+			switch (mode) {
 				case "microphone":
 					const micResult = await this.startMicrophoneCapture();
 					audioStream = micResult.stream;
@@ -250,7 +263,7 @@ export class NativeAudioRecorder implements AudioRecorder {
 					break;
 
 				default:
-					throw new Error(`Unknown audio source mode: ${this.audioSourceMode}`);
+					throw new Error(`Unknown audio source mode: ${mode}`);
 			}
 
 			this.activeStreams.push(audioStream);
@@ -276,7 +289,7 @@ export class NativeAudioRecorder implements AudioRecorder {
 				system: "system audio",
 				both: "microphone + system audio",
 			};
-			new Notice(`Recording from ${modeName[this.audioSourceMode]}...`);
+			new Notice(`Recording from ${modeName[mode]}...`);
 
 		} catch (err) {
 			this.cleanupStreams();
