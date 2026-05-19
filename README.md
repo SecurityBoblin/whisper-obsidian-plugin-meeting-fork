@@ -114,7 +114,7 @@ obsidian://whisper?command=cancel           discard recording
 
 ## Manual Installation
 
-Download `manifest.json`, `main.js`, `styles.css` from [releases](https://github.com/SecurityBoblin/whisper-obsidian-plugin/releases) into `.obsidian/plugins/whisper-system-audio/` in your vault.
+Download `manifest.json`, `main.js`, `styles.css` from [releases](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/releases) into `.obsidian/plugins/whisper-system-audio/` in your vault.
 
 ## Note Templates
 
