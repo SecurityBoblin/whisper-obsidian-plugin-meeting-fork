@@ -28,6 +28,8 @@ export interface ApiKeysSettings {
 	postProcessingApiKey: string;
 }
 
+export type AudioSourceMode = "microphone" | "system" | "both";
+
 export interface WhisperSettings {
 	// API
 	apiUrl: string;
@@ -39,6 +41,7 @@ export interface WhisperSettings {
 	cursorContext: boolean;
 	// Recording
 	audioDeviceId: string;
+	audioSourceMode: AudioSourceMode;
 	saveAudioFile: boolean;
 	audioSavePath: string;
 	// Output
@@ -81,6 +84,7 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	responseFormat: "json",
 	cursorContext: false,
 	audioDeviceId: "default",
+	audioSourceMode: "microphone",
 	saveAudioFile: true,
 	audioSavePath: "",
 	createNoteFile: true,

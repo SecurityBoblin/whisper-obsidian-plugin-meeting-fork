@@ -5,6 +5,7 @@ import {
 	PostProcessingProvider,
 	PROVIDER_URLS,
 	PROVIDER_DEFAULT_MODELS,
+	AudioSourceMode,
 } from "./SettingsManager";
 
 export class WhisperSettingsTab extends PluginSettingTab {
@@ -41,8 +42,19 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		// --- Recording ---
 		new Setting(containerEl).setName("Recording").setHeading();
-		// async — populates device dropdown after enumeration completes
-		void this.createAudioDeviceSetting();
+		void this.createAudioSourceModeSetting();
+		if (
+			this.plugin.settings.audioSourceMode === "microphone" ||
+			this.plugin.settings.audioSourceMode === "both"
+		) {
+			void this.createAudioDeviceSetting();
+		}
+		if (
+			this.plugin.settings.audioSourceMode === "system" ||
+			this.plugin.settings.audioSourceMode === "both"
+		) {
+			this.createSystemAudioGuideSetting();
+		}
 		this.createSaveAudioFileToggleSetting();
 		if (this.plugin.settings.saveAudioFile) {
 			this.createSaveAudioFilePathSetting();
@@ -274,6 +286,45 @@ export class WhisperSettingsTab extends PluginSettingTab {
 				);
 			});
 		});
+	}
+
+	private async createAudioSourceModeSetting(): Promise<void> {
+		const modeOptions: Record<AudioSourceMode, string> = {
+			microphone: "Microphone",
+			system: "System Audio (speakers/headphones)",
+			both: "Microphone + System Audio",
+		};
+
+		new Setting(this.containerEl)
+			.setName("Audio Source")
+			.setDesc(
+				"Choose what audio to capture for transcription. System audio lets you transcribe online meetings, videos, and other app audio."
+			)
+			.addDropdown((dropdown) => {
+				for (const [value, label] of Object.entries(modeOptions)) {
+					dropdown.addOption(value, label);
+				}
+				dropdown
+					.setValue(this.plugin.settings.audioSourceMode)
+					.onChange(async (value) => {
+						const mode = value as AudioSourceMode;
+						this.plugin.settings.audioSourceMode = mode;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+						this.plugin.recorder.setAudioSourceMode(mode);
+						this.plugin.statusBar.setAudioSourceMode(mode);
+						this.display();
+					});
+			});
+	}
+
+	private createSystemAudioGuideSetting(): void {
+		new Setting(this.containerEl)
+			.setName("System Audio Capture")
+			.setDesc(
+				"When recording, you'll be prompted to select a tab, window, or screen to capture audio from. For online meetings, select the meeting tab/window. Tip: On macOS, system audio capture requires macOS 13+ or a virtual audio device like BlackHole."
+			);
 	}
 
 	private createSaveAudioFileToggleSetting(): void {

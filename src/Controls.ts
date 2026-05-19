@@ -1,6 +1,7 @@
 import Whisper from "main";
-import { ButtonComponent, Modal } from "obsidian";
+import { ButtonComponent, Modal, Setting } from "obsidian";
 import { RecordingStatus } from "./StatusBar";
+import { AudioSourceMode } from "./SettingsManager";
 
 export class Controls extends Modal {
 	private plugin: Whisper;
@@ -9,6 +10,7 @@ export class Controls extends Modal {
 	private stopButton: ButtonComponent;
 	private cancelButton: ButtonComponent;
 	private timerDisplay: HTMLElement;
+	private modeDisplay: HTMLElement;
 	private statusListener: () => void;
 
 	constructor(plugin: Whisper) {
@@ -22,6 +24,11 @@ export class Controls extends Modal {
 		this.plugin.timer.setOnUpdate(() => {
 			this.updateTimerDisplay();
 		});
+
+		this.modeDisplay = this.contentEl.createEl("div", {
+			cls: "audio-mode-display",
+		});
+		this.updateModeDisplay();
 
 		const buttonGroupEl = this.contentEl.createEl("div", {
 			cls: "button-group",
@@ -64,12 +71,14 @@ export class Controls extends Modal {
 		this.statusListener = () => {
 			this.resetGUI();
 			this.updateTimerDisplay();
+			this.updateModeDisplay();
 		};
 	}
 
 	onOpen() {
 		this.resetGUI();
 		this.updateTimerDisplay();
+		this.updateModeDisplay();
 		this.plugin.statusBar.onChange(this.statusListener);
 	}
 
@@ -79,6 +88,19 @@ export class Controls extends Modal {
 
 	updateTimerDisplay() {
 		this.timerDisplay.textContent = this.plugin.timer.getFormattedTime();
+	}
+
+	private updateModeDisplay(): void {
+		const modeLabels: Record<AudioSourceMode, string> = {
+			microphone: "🎤 Microphone",
+			system: "🔊 System Audio",
+			both: "🎤🔊 Mic + System Audio",
+		};
+		const mode = this.plugin.recorder.getAudioSourceMode();
+		this.modeDisplay.textContent = `Source: ${modeLabels[mode]}`;
+		this.modeDisplay.style.opacity = "0.7";
+		this.modeDisplay.style.fontSize = "0.9em";
+		this.modeDisplay.style.marginBottom = "10px";
 	}
 
 	resetGUI() {

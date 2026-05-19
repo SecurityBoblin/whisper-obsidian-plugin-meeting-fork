@@ -34,6 +34,7 @@ export default class Whisper extends Plugin {
 				? null
 				: this.settings.audioDeviceId;
 		this.recorder.setDeviceId(deviceId);
+		this.recorder.setAudioSourceMode(this.settings.audioSourceMode);
 
 		this.statusBar = new StatusBar(this);
 
@@ -110,10 +111,8 @@ export default class Whisper extends Plugin {
 		try {
 			await this.recorder.startRecording();
 			this.statusBar.updateStatus(RecordingStatus.Recording);
-			new Notice("Recording...");
 		} catch (err) {
 			this.statusBar.updateStatus(RecordingStatus.Idle);
-			new Notice("✘ Could not start recording");
 		}
 	}
 
