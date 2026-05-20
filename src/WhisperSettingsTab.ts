@@ -77,6 +77,14 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		new Setting(containerEl).setName("Advanced").setHeading();
 		this.createDebugModeToggleSetting();
 
+		// Expert settings (collapsible)
+		const details = containerEl.createEl("details");
+		details.createEl("summary", {
+			text: "Expert settings",
+			cls: "whisper-expert-summary",
+		});
+		this.createConcurrentTranscriptionsSetting(details);
+
 		// Restore scroll position after re-render to prevent jumping
 		containerEl.scrollTop = scrollTop;
 	}
@@ -629,6 +637,28 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						await this.save();
 					});
 			});
+	}
+
+	private createConcurrentTranscriptionsSetting(
+		container: HTMLElement
+	): void {
+		new Setting(container)
+			.setName("Concurrent transcription requests")
+			.setDesc(
+				"Number of audio segments sent to the API in parallel when splitting long recordings."
+			)
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, 5, 1)
+					.setValue(this.plugin.settings.concurrentTranscriptions)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.concurrentTranscriptions = value;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+					})
+			);
 	}
 
 	private createDebugModeToggleSetting(): void {

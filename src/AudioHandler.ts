@@ -112,23 +112,37 @@ export class AudioHandler {
 			SEGMENT_DURATION_SECONDS,
 			preDecoded
 		);
-		const texts: string[] = [];
+		const texts: string[] = new Array(segments.length);
+		const concurrency = this.plugin.settings.concurrentTranscriptions;
 
-		for (let i = 0; i < segments.length; i++) {
-			notice.setMessage(
-				`Transcribing segment ${i + 1}/${segments.length}...`
-			);
-			try {
-				const text = await this.callTranscriptionApi(
-					segments[i],
-					`${baseFileName}_part${i + 1}.wav`
+		// Worker pool: N workers pull from a shared queue so a free worker
+		// immediately picks up the next segment without waiting for others.
+		const queue: Array<[number, Blob]> = segments.map((seg, i) => [i, seg]);
+
+		const worker = async (): Promise<void> => {
+			while (queue.length > 0) {
+				const item = queue.shift();
+				if (!item) return;
+				const [idx, segment] = item;
+				notice.setMessage(
+					`Transcribing segment ${idx + 1}/${segments.length}...`
 				);
-				texts.push(text);
-			} catch (err) {
-				console.error(`Segment ${i + 1} transcription failed:`, err);
-				texts.push(`[Segment ${i + 1} transcription failed]`);
+				try {
+					texts[idx] = await this.callTranscriptionApi(
+						segment,
+						`${baseFileName}_part${idx + 1}.wav`
+					);
+				} catch (err) {
+					console.error(
+						`Segment ${idx + 1} transcription failed:`,
+						err
+					);
+					texts[idx] = `[Segment ${idx + 1} transcription failed]`;
+				}
 			}
-		}
+		};
+
+		await Promise.all(Array.from({ length: concurrency }, worker));
 
 		notice.hide();
 		return texts.join("\n\n");
