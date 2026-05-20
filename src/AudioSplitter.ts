@@ -3,9 +3,13 @@ export const SEGMENT_DURATION_SECONDS = 300; // 5 minutes
 
 // Silence detection constants (internal)
 const SPLIT_SEARCH_WINDOW_S = 30; // search up to 30 s before the target boundary
-const SILENCE_THRESHOLD_RMS = 0.015; // RMS below this = silence
 const MIN_SILENCE_S = 0.3; // silence must last at least 300 ms
 const RMS_WINDOW_S = 0.05; // 50 ms analysis windows
+
+export interface SplitPoint {
+	seconds: number; // boundary timestamp
+	silence: boolean; // true = snapped to a silence, false = exact boundary (fallback)
+}
 
 /**
  * Returns the audio duration and, if decoding was required to determine it
@@ -35,7 +39,8 @@ export async function probeAudio(
 export async function splitAudioBlob(
 	blob: Blob,
 	segmentSeconds: number,
-	preDecoded?: AudioBuffer
+	preDecoded?: AudioBuffer,
+	threshold = 0.015
 ): Promise<Blob[]> {
 	const audioBuffer = preDecoded ?? (await decodeAudio(blob));
 
@@ -47,11 +52,10 @@ export async function splitAudioBlob(
 	let start = 0;
 	while (start < totalSamples) {
 		const rawEnd = Math.min(start + segmentSamples, totalSamples);
-		// For all but the final segment, snap to a nearby silence
 		const end =
 			rawEnd === totalSamples
 				? totalSamples
-				: findSplitPoint(audioBuffer, rawEnd);
+				: findSplitPoint(audioBuffer, rawEnd, threshold);
 		segments.push(encodeWavBlob(audioBuffer, start, end));
 		start = end;
 	}
@@ -60,14 +64,67 @@ export async function splitAudioBlob(
 }
 
 /**
+ * Returns the split boundaries for a decoded AudioBuffer without encoding WAV.
+ * Used by the settings test UI to preview split points.
+ * Includes 0 (start) and buffer.duration (end) as the first and last entries.
+ */
+export function analyzeSplits(
+	buffer: AudioBuffer,
+	segmentSeconds: number,
+	threshold: number
+): SplitPoint[] {
+	const sr = buffer.sampleRate;
+	const totalSamples = buffer.length;
+	const segmentSamples = Math.floor(segmentSeconds * sr);
+	const points: SplitPoint[] = [{ seconds: 0, silence: false }];
+
+	let start = 0;
+	while (start < totalSamples) {
+		const rawEnd = Math.min(start + segmentSamples, totalSamples);
+		let end: number;
+		let silence: boolean;
+		if (rawEnd === totalSamples) {
+			end = totalSamples;
+			silence = false;
+		} else {
+			end = findSplitPoint(buffer, rawEnd, threshold);
+			silence = end !== rawEnd;
+		}
+		points.push({ seconds: end / sr, silence });
+		start = end;
+	}
+
+	return points;
+}
+
+/**
+ * Decodes a Blob and returns split boundary info. Used by the settings test UI.
+ */
+export async function analyzeAudioBlob(
+	blob: Blob,
+	segmentSeconds: number,
+	threshold: number
+): Promise<SplitPoint[]> {
+	const buffer = await decodeAudio(blob);
+	return analyzeSplits(buffer, segmentSeconds, threshold);
+}
+
+/**
  * Given a target split sample, scans the preceding SPLIT_SEARCH_WINDOW_S
  * seconds for the latest qualifying silence (RMS < threshold for >= MIN_SILENCE_S).
  * Returns the start sample of that silence, or targetSample as a fallback.
  */
-function findSplitPoint(buffer: AudioBuffer, targetSample: number): number {
+function findSplitPoint(
+	buffer: AudioBuffer,
+	targetSample: number,
+	threshold: number
+): number {
 	const sr = buffer.sampleRate;
 	const windowSamples = Math.floor(RMS_WINDOW_S * sr);
-	const searchStart = Math.max(0, targetSample - Math.floor(SPLIT_SEARCH_WINDOW_S * sr));
+	const searchStart = Math.max(
+		0,
+		targetSample - Math.floor(SPLIT_SEARCH_WINDOW_S * sr)
+	);
 	const minSilenceSamples = Math.floor(MIN_SILENCE_S * sr);
 	const numChannels = buffer.numberOfChannels;
 
@@ -77,7 +134,6 @@ function findSplitPoint(buffer: AudioBuffer, targetSample: number): number {
 	for (let pos = searchStart; pos < targetSample; pos += windowSamples) {
 		const wEnd = Math.min(pos + windowSamples, targetSample);
 
-		// RMS across all channels for this window
 		let sumSq = 0;
 		let n = 0;
 		for (let ch = 0; ch < numChannels; ch++) {
@@ -89,9 +145,8 @@ function findSplitPoint(buffer: AudioBuffer, targetSample: number): number {
 		}
 		const rms = n > 0 ? Math.sqrt(sumSq / n) : 0;
 
-		if (rms < SILENCE_THRESHOLD_RMS) {
+		if (rms < threshold) {
 			if (silenceRegionStart === -1) silenceRegionStart = pos;
-			// Record this as a candidate once silence is long enough
 			if (pos + windowSamples - silenceRegionStart >= minSilenceSamples) {
 				bestSplit = silenceRegionStart;
 			}

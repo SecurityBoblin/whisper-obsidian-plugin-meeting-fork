@@ -110,7 +110,8 @@ export class AudioHandler {
 		const segments = await splitAudioBlob(
 			blob,
 			SEGMENT_DURATION_SECONDS,
-			preDecoded
+			preDecoded,
+			this.plugin.settings.silenceThreshold
 		);
 		const texts: string[] = new Array(segments.length);
 		const concurrency = this.plugin.settings.concurrentTranscriptions;
