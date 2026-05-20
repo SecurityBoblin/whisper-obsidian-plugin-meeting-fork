@@ -9,7 +9,7 @@ import {
 } from "./utils";
 import { PostProcessor } from "./PostProcessor";
 import {
-	getAudioDuration,
+	probeAudio,
 	splitAudioBlob,
 	SPLIT_THRESHOLD_SECONDS,
 	SEGMENT_DURATION_SECONDS,
@@ -103,10 +103,15 @@ export class AudioHandler {
 
 	private async transcribeSegmented(
 		blob: Blob,
-		baseFileName: string
+		baseFileName: string,
+		preDecoded?: AudioBuffer
 	): Promise<string> {
 		const notice = new Notice("Splitting audio...", 0);
-		const segments = await splitAudioBlob(blob, SEGMENT_DURATION_SECONDS);
+		const segments = await splitAudioBlob(
+			blob,
+			SEGMENT_DURATION_SECONDS,
+			preDecoded
+		);
 		const texts: string[] = [];
 
 		for (let i = 0; i < segments.length; i++) {
@@ -185,10 +190,14 @@ export class AudioHandler {
 		}
 
 		try {
-			const duration = await getAudioDuration(blob);
+			const { duration, buffer: cachedBuffer } = await probeAudio(blob);
 			let originalText: string;
-			if (isFinite(duration) && duration > SPLIT_THRESHOLD_SECONDS) {
-				originalText = await this.transcribeSegmented(blob, baseFileName);
+			if (duration > SPLIT_THRESHOLD_SECONDS) {
+				originalText = await this.transcribeSegmented(
+					blob,
+					baseFileName,
+					cachedBuffer ?? undefined
+				);
 			} else {
 				originalText = await this.callTranscriptionApi(blob, fileName);
 			}

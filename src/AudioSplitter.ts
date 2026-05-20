@@ -1,7 +1,54 @@
 export const SPLIT_THRESHOLD_SECONDS = 600; // 10 minutes
 export const SEGMENT_DURATION_SECONDS = 300; // 5 minutes
 
-export async function getAudioDuration(blob: Blob): Promise<number> {
+/**
+ * Returns the audio duration and, if decoding was required to determine it
+ * (e.g. WebM files from MediaRecorder which lack duration metadata), the
+ * pre-decoded AudioBuffer so callers can reuse it without a second decode.
+ */
+export async function probeAudio(
+	blob: Blob
+): Promise<{ duration: number; buffer: AudioBuffer | null }> {
+	const metaDuration = await getMetadataDuration(blob);
+	if (isFinite(metaDuration)) {
+		return { duration: metaDuration, buffer: null };
+	}
+	// Fallback: decode to get real duration (WebM from MediaRecorder reports Infinity)
+	try {
+		const buffer = await decodeAudio(blob);
+		return { duration: buffer.duration, buffer };
+	} catch {
+		return { duration: 0, buffer: null };
+	}
+}
+
+/**
+ * Splits a Blob into segments of segmentSeconds length, re-encoded as WAV.
+ * Pass a pre-decoded AudioBuffer to avoid decoding twice.
+ */
+export async function splitAudioBlob(
+	blob: Blob,
+	segmentSeconds: number,
+	preDecoded?: AudioBuffer
+): Promise<Blob[]> {
+	const audioBuffer = preDecoded ?? (await decodeAudio(blob));
+
+	const sampleRate = audioBuffer.sampleRate;
+	const totalSamples = audioBuffer.length;
+	const segmentSamples = Math.floor(segmentSeconds * sampleRate);
+	const segments: Blob[] = [];
+
+	let start = 0;
+	while (start < totalSamples) {
+		const end = Math.min(start + segmentSamples, totalSamples);
+		segments.push(encodeWavBlob(audioBuffer, start, end));
+		start = end;
+	}
+
+	return segments;
+}
+
+async function getMetadataDuration(blob: Blob): Promise<number> {
 	return new Promise((resolve) => {
 		const audio = document.createElement("audio");
 		const url = URL.createObjectURL(blob);
@@ -17,28 +64,12 @@ export async function getAudioDuration(blob: Blob): Promise<number> {
 	});
 }
 
-export async function splitAudioBlob(
-	blob: Blob,
-	segmentSeconds: number
-): Promise<Blob[]> {
+async function decodeAudio(blob: Blob): Promise<AudioBuffer> {
 	const arrayBuffer = await blob.arrayBuffer();
 	const audioCtx = new AudioContext();
-	const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+	const buffer = await audioCtx.decodeAudioData(arrayBuffer);
 	audioCtx.close();
-
-	const sampleRate = audioBuffer.sampleRate;
-	const totalSamples = audioBuffer.length;
-	const segmentSamples = Math.floor(segmentSeconds * sampleRate);
-	const segments: Blob[] = [];
-
-	let start = 0;
-	while (start < totalSamples) {
-		const end = Math.min(start + segmentSamples, totalSamples);
-		segments.push(encodeWavBlob(audioBuffer, start, end));
-		start = end;
-	}
-
-	return segments;
+	return buffer;
 }
 
 function encodeWavBlob(
