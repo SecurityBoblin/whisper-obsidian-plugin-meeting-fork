@@ -8,6 +8,12 @@ import {
 	resolveTemplate,
 } from "./utils";
 import { PostProcessor } from "./PostProcessor";
+import {
+	getAudioDuration,
+	splitAudioBlob,
+	SPLIT_THRESHOLD_SECONDS,
+	SEGMENT_DURATION_SECONDS,
+} from "./AudioSplitter";
 
 export class AudioHandler {
 	private plugin: Whisper;
@@ -36,38 +42,12 @@ export class AudioHandler {
 		}
 	}
 
-	async sendAudioData(blob: Blob, fileName: string): Promise<void> {
-		// Get the base file name without extension
-		const baseFileName = getBaseFileName(fileName);
-
-		const audioFilePath = `${
-			this.plugin.settings.audioSavePath
-				? `${this.plugin.settings.audioSavePath}/`
-				: ""
-		}${fileName}`;
-
-		const noteFilePath = `${
-			this.plugin.settings.noteSavePath
-				? `${this.plugin.settings.noteSavePath}/`
-				: ""
-		}${baseFileName}.md`;
-
+	private async callTranscriptionApi(
+		blob: Blob,
+		fileName: string
+	): Promise<string> {
 		if (this.plugin.settings.debugMode) {
-			new Notice(`Sending ${Math.round(blob.size / 1000)} KB...`);
-		}
-
-		const isDefaultApi =
-			this.plugin.settings.apiUrl ===
-			"https://api.openai.com/v1/audio/transcriptions";
-		if (isDefaultApi && !this.plugin.settings.apiKey) {
-			new Notice("✘ Add your API key in Whisper settings");
-			return;
-		}
-
-		const MIN_AUDIO_SIZE_BYTES = 1000;
-		if (blob.size < MIN_AUDIO_SIZE_BYTES) {
-			new Notice("✘ Recording too short");
-			return;
+			new Notice("Transcribing...");
 		}
 
 		const formData = new FormData();
@@ -104,6 +84,85 @@ export class AudioHandler {
 				this.plugin.settings.responseFormat
 			);
 
+		const response = await axios.post(
+			this.plugin.settings.apiUrl,
+			formData,
+			{
+				headers: {
+					"Content-Type": "multipart/form-data",
+					...(this.plugin.settings.apiKey
+						? {
+								Authorization: `Bearer ${this.plugin.settings.apiKey}`,
+						  }
+						: {}),
+				},
+			}
+		);
+		return response.data.text as string;
+	}
+
+	private async transcribeSegmented(
+		blob: Blob,
+		baseFileName: string
+	): Promise<string> {
+		const notice = new Notice("Splitting audio...", 0);
+		const segments = await splitAudioBlob(blob, SEGMENT_DURATION_SECONDS);
+		const texts: string[] = [];
+
+		for (let i = 0; i < segments.length; i++) {
+			notice.setMessage(
+				`Transcribing segment ${i + 1}/${segments.length}...`
+			);
+			try {
+				const text = await this.callTranscriptionApi(
+					segments[i],
+					`${baseFileName}_part${i + 1}.wav`
+				);
+				texts.push(text);
+			} catch (err) {
+				console.error(`Segment ${i + 1} transcription failed:`, err);
+				texts.push(`[Segment ${i + 1} transcription failed]`);
+			}
+		}
+
+		notice.hide();
+		return texts.join("\n\n");
+	}
+
+	async sendAudioData(blob: Blob, fileName: string): Promise<void> {
+		// Get the base file name without extension
+		const baseFileName = getBaseFileName(fileName);
+
+		const audioFilePath = `${
+			this.plugin.settings.audioSavePath
+				? `${this.plugin.settings.audioSavePath}/`
+				: ""
+		}${fileName}`;
+
+		const noteFilePath = `${
+			this.plugin.settings.noteSavePath
+				? `${this.plugin.settings.noteSavePath}/`
+				: ""
+		}${baseFileName}.md`;
+
+		if (this.plugin.settings.debugMode) {
+			new Notice(`Sending ${Math.round(blob.size / 1000)} KB...`);
+		}
+
+		const isDefaultApi =
+			this.plugin.settings.apiUrl ===
+			"https://api.openai.com/v1/audio/transcriptions";
+		if (isDefaultApi && !this.plugin.settings.apiKey) {
+			new Notice("✘ Add your API key in Whisper settings");
+			return;
+		}
+
+		const MIN_AUDIO_SIZE_BYTES = 1000;
+		if (blob.size < MIN_AUDIO_SIZE_BYTES) {
+			new Notice("✘ Recording too short");
+			return;
+		}
+
 		try {
 			// If the saveAudioFile setting is true, save the audio file
 			if (this.plugin.settings.saveAudioFile) {
@@ -126,25 +185,13 @@ export class AudioHandler {
 		}
 
 		try {
-			if (this.plugin.settings.debugMode) {
-				new Notice("Transcribing...");
+			const duration = await getAudioDuration(blob);
+			let originalText: string;
+			if (isFinite(duration) && duration > SPLIT_THRESHOLD_SECONDS) {
+				originalText = await this.transcribeSegmented(blob, baseFileName);
+			} else {
+				originalText = await this.callTranscriptionApi(blob, fileName);
 			}
-			const response = await axios.post(
-				this.plugin.settings.apiUrl,
-				formData,
-				{
-					headers: {
-						"Content-Type": "multipart/form-data",
-						...(this.plugin.settings.apiKey
-							? {
-									Authorization: `Bearer ${this.plugin.settings.apiKey}`,
-							  }
-							: {}),
-					},
-				}
-			);
-
-			const originalText: string = response.data.text;
 			let finalText = originalText;
 
 			// Post-process with LLM if enabled
