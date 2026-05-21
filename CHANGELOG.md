@@ -1,5 +1,19 @@
 
 
+## [1.11.0](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/compare/v1.10.0...v1.11.0) (2026-05-21)
+
+
+### Features
+
+* concurrent segment transcription with silence-aware splitting ([e07d5ca](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/commit/e07d5ca16bb6a9aa05bf65320baf4af11b264f15))
+* configurable silence threshold with split-point test UI ([3efaa52](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/commit/3efaa5250378f2995083875241b5c17f8d4d9991))
+* split long audio files into 5-min segments for transcription ([b4945b5](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/commit/b4945b5dff8233ef42378595c418e831f358661a))
+
+
+### Bug Fixes
+
+* handle WebM files with missing duration metadata before splitting ([239333c](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/commit/239333ca845fab6e43da60a36d6d7c6add6f1ff0))
+
 ## [1.9.1](https://github.com/nikdanilov/whisper-obsidian-plugin/compare/1.9.0...1.9.1) (2026-04-07)
 
 
