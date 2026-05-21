@@ -1,5 +1,12 @@
 
 
+## [1.12.0](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/compare/v1.11.0...v1.12.0) (2026-05-21)
+
+
+### Features
+
+* custom POST arguments for transcription endpoints ([6643cf7](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/commit/6643cf717db7b11825441e5803a441fe2746306f))
+
 ## [1.11.0](https://github.com/SecurityBoblin/whisper-obsidian-plugin-meeting-fork/compare/v1.10.0...v1.11.0) (2026-05-21)
 
 
