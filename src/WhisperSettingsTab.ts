@@ -43,6 +43,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		this.createSendCursorContextSetting();
 		this.createTemperatureSetting();
 		this.createResponseFormatSetting();
+		this.createExtraParamsSetting();
 
 		// --- Recording ---
 		new Setting(containerEl).setName("Recording").setHeading();
@@ -666,6 +667,65 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						);
 					})
 			);
+	}
+
+	private createExtraParamsSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Custom POST arguments")
+			.setDesc(
+				"Extra form fields appended to every transcription request. " +
+					"Useful for custom endpoints that support diarization, speaker labels, etc."
+			);
+
+		const listEl = this.containerEl.createDiv({
+			cls: "whisper-extra-params",
+		});
+		this.renderExtraParamsList(listEl);
+	}
+
+	private renderExtraParamsList(container: HTMLElement): void {
+		container.empty();
+		const params = this.plugin.settings.transcriptionExtraParams;
+
+		for (let i = 0; i < params.length; i++) {
+			const row = container.createDiv({ cls: "whisper-extra-param-row" });
+
+			const keyInput = row.createEl("input");
+			keyInput.type = "text";
+			keyInput.placeholder = "argument name";
+			keyInput.value = params[i].key;
+			keyInput.addEventListener("change", async () => {
+				params[i].key = keyInput.value;
+				await this.save();
+			});
+
+			const valueInput = row.createEl("input");
+			valueInput.type = "text";
+			valueInput.placeholder = "value";
+			valueInput.value = params[i].value;
+			valueInput.addEventListener("change", async () => {
+				params[i].value = valueInput.value;
+				await this.save();
+			});
+
+			const deleteBtn = row.createEl("button");
+			deleteBtn.setText("×");
+			deleteBtn.addEventListener("click", async () => {
+				params.splice(i, 1);
+				await this.save();
+				this.renderExtraParamsList(container);
+			});
+		}
+
+		const addBtn = container.createEl("button", {
+			cls: "whisper-add-param-btn",
+		});
+		addBtn.setText("+ Add argument");
+		addBtn.addEventListener("click", async () => {
+			params.push({ key: "", value: "" });
+			await this.save();
+			this.renderExtraParamsList(container);
+		});
 	}
 
 	private createSilenceThresholdSetting(container: HTMLElement): void {

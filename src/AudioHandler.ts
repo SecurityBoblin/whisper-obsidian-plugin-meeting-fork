@@ -84,6 +84,11 @@ export class AudioHandler {
 				this.plugin.settings.responseFormat
 			);
 
+		for (const { key, value } of this.plugin.settings
+			.transcriptionExtraParams) {
+			if (key.trim()) formData.append(key.trim(), value);
+		}
+
 		const response = await axios.post(
 			this.plugin.settings.apiUrl,
 			formData,

@@ -38,6 +38,7 @@ export interface WhisperSettings {
 	prompt: string;
 	temperature: number;
 	responseFormat: string;
+	transcriptionExtraParams: Array<{ key: string; value: string }>;
 	cursorContext: boolean;
 	// Recording
 	audioDeviceId: string;
@@ -84,6 +85,7 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	prompt: "",
 	temperature: 0,
 	responseFormat: "json",
+	transcriptionExtraParams: [],
 	cursorContext: false,
 	audioDeviceId: "default",
 	saveAudioFile: true,
