@@ -51,6 +51,8 @@ export interface WhisperSettings {
 	noteTemplate: string;
 	// Advanced
 	debugMode: boolean;
+	concurrentTranscriptions: number;
+	silenceThreshold: number;
 }
 
 export interface PostProcessingSettings {
@@ -92,6 +94,8 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	noteFilenameTemplate: "{{datetime}}",
 	noteTemplate: "![[{{audioFile}}]]\n{{transcription}}",
 	debugMode: false,
+	concurrentTranscriptions: 2,
+	silenceThreshold: 0.015,
 };
 
 export const DEFAULT_POST_PROCESSING: PostProcessingSettings = {

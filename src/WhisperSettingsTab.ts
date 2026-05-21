@@ -1,6 +1,11 @@
 import Whisper from "main";
 import { App, PluginSettingTab, Setting } from "obsidian";
 import {
+	analyzeAudioBlob,
+	SEGMENT_DURATION_SECONDS,
+	SplitPoint,
+} from "./AudioSplitter";
+import {
 	SettingsManager,
 	PostProcessingProvider,
 	PROVIDER_URLS,
@@ -76,6 +81,16 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		// --- Advanced ---
 		new Setting(containerEl).setName("Advanced").setHeading();
 		this.createDebugModeToggleSetting();
+
+		// Expert settings (collapsible)
+		const details = containerEl.createEl("details");
+		details.createEl("summary", {
+			text: "Expert settings",
+			cls: "whisper-expert-summary",
+		});
+		this.createConcurrentTranscriptionsSetting(details);
+		this.createSilenceThresholdSetting(details);
+		this.createSplitTestSetting(details);
 
 		// Restore scroll position after re-render to prevent jumping
 		containerEl.scrollTop = scrollTop;
@@ -631,6 +646,101 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			});
 	}
 
+	private createConcurrentTranscriptionsSetting(
+		container: HTMLElement
+	): void {
+		new Setting(container)
+			.setName("Concurrent transcription requests")
+			.setDesc(
+				"Number of audio segments sent to the API in parallel when splitting long recordings."
+			)
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, 5, 1)
+					.setValue(this.plugin.settings.concurrentTranscriptions)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.concurrentTranscriptions = value;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+					})
+			);
+	}
+
+	private createSilenceThresholdSetting(container: HTMLElement): void {
+		new Setting(container)
+			.setName("Silence threshold")
+			.setDesc(
+				"RMS amplitude below which audio is considered silence (0.001 – 0.1). Lower = more sensitive to quiet pauses."
+			)
+			.addText((text) => {
+				text.setValue(
+					String(this.plugin.settings.silenceThreshold)
+				);
+				text.inputEl.type = "number";
+				text.inputEl.min = "0.001";
+				text.inputEl.max = "0.1";
+				text.inputEl.step = "0.001";
+				text.onChange(async (value) => {
+					const num = parseFloat(value);
+					if (!isNaN(num) && num >= 0.001 && num <= 0.1) {
+						this.plugin.settings.silenceThreshold = num;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+					}
+				});
+			});
+	}
+
+	private createSplitTestSetting(container: HTMLElement): void {
+		const resultsEl = container.createDiv({
+			cls: "whisper-split-results",
+		});
+
+		new Setting(container)
+			.setName("Test split points")
+			.setDesc(
+				"Load an audio file to preview where it would be split with the current threshold."
+			)
+			.addButton((btn) => {
+				btn.setButtonText("Choose file…").onClick(() => {
+					const input = document.createElement("input");
+					input.type = "file";
+					input.accept =
+						"audio/*,video/*,.mp4,.m4a,.wav,.webm,.ogg,.mp3";
+					input.onchange = async () => {
+						const file = input.files?.[0];
+						if (!file) return;
+						resultsEl.empty();
+						resultsEl.setText("Analyzing…");
+						try {
+							const blob = new Blob(
+								[await file.arrayBuffer()],
+								{ type: file.type }
+							);
+							const points = await analyzeAudioBlob(
+								blob,
+								SEGMENT_DURATION_SECONDS,
+								this.plugin.settings.silenceThreshold
+							);
+							renderSplitResults(resultsEl, points, file.name);
+						} catch (err) {
+							resultsEl.empty();
+							resultsEl.setText(
+								"Failed to analyze: " +
+									(err instanceof Error
+										? err.message
+										: String(err))
+							);
+						}
+					};
+					input.click();
+				});
+			});
+	}
+
 	private createDebugModeToggleSetting(): void {
 		new Setting(this.containerEl)
 			.setName("Debug mode")
@@ -645,5 +755,38 @@ export class WhisperSettingsTab extends PluginSettingTab {
 						);
 					});
 			});
+	}
+}
+
+function fmtTime(seconds: number): string {
+	const m = Math.floor(seconds / 60);
+	const s = Math.floor(seconds % 60);
+	return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function renderSplitResults(
+	el: HTMLElement,
+	points: SplitPoint[],
+	fileName: string
+): void {
+	el.empty();
+	const segmentCount = points.length - 1;
+	const totalSeconds = points[points.length - 1].seconds;
+	el.createEl("p", {
+		text: `${segmentCount} segment${segmentCount !== 1 ? "s" : ""} — ${fmtTime(totalSeconds)} total — ${fileName}`,
+	});
+	const list = el.createEl("ul");
+	for (let i = 0; i < segmentCount; i++) {
+		const start = points[i].seconds;
+		const end = points[i + 1].seconds;
+		const label =
+			i === segmentCount - 1
+				? "(end)"
+				: points[i + 1].silence
+				? "(silence)"
+				: "(exact boundary)";
+		list.createEl("li", {
+			text: `${i + 1}: ${fmtTime(start)} → ${fmtTime(end)}  ${label}`,
+		});
 	}
 }
