@@ -15,6 +15,7 @@ export default class Whisper extends Plugin {
 	audioHandler: AudioHandler;
 	controls: Controls | null = null;
 	statusBar: StatusBar;
+	private activeNotice: Notice | null = null;
 
 	async onload() {
 		this.settingsManager = new SettingsManager(this);
@@ -38,7 +39,7 @@ export default class Whisper extends Plugin {
 
 		this.statusBar = new StatusBar(this);
 
-		// Timer reacts to recording state changes
+		// Timer and notice react to recording state changes
 		this.statusBar.onChange((status) => {
 			switch (status) {
 				case RecordingStatus.Recording:
@@ -50,6 +51,20 @@ export default class Whisper extends Plugin {
 				case RecordingStatus.Processing:
 				case RecordingStatus.Idle:
 					this.timer.reset();
+					break;
+			}
+
+			this.activeNotice?.hide();
+			this.activeNotice = null;
+			switch (status) {
+				case RecordingStatus.Recording:
+					this.activeNotice = new Notice("Recording\u2026", 0);
+					break;
+				case RecordingStatus.Paused:
+					this.activeNotice = new Notice("Recording paused", 0);
+					break;
+				case RecordingStatus.Processing:
+					this.activeNotice = new Notice("Transcribing\u2026", 0);
 					break;
 			}
 		});
@@ -92,6 +107,7 @@ export default class Whisper extends Plugin {
 	}
 
 	onunload() {
+		this.activeNotice?.hide();
 		if (this.controls) {
 			this.controls.close();
 		}
@@ -138,11 +154,9 @@ export default class Whisper extends Plugin {
 		if (this.statusBar.status === RecordingStatus.Recording) {
 			await this.recorder.pauseRecording();
 			this.statusBar.updateStatus(RecordingStatus.Paused);
-			new Notice("Recording paused");
 		} else if (this.statusBar.status === RecordingStatus.Paused) {
 			await this.recorder.pauseRecording();
 			this.statusBar.updateStatus(RecordingStatus.Recording);
-			new Notice("Recording resumed");
 		}
 	}
 

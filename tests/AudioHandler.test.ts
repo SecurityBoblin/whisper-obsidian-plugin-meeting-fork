@@ -28,6 +28,10 @@ function buildFormData(settings: PluginSettings, blob: Blob, fileName: string) {
 		formData.append("response_format", responseFormat);
 	}
 
+	for (const { key, value } of settings.transcriptionExtraParams ?? []) {
+		if (key.trim()) formData.append(key.trim(), value);
+	}
+
 	return formData;
 }
 
@@ -289,6 +293,79 @@ describe("#115 — createNoteFile does not navigate away", () => {
 			false
 		);
 		expect(actions).toEqual(["create-note-file"]);
+	});
+});
+
+describe("transcriptionExtraParams — custom POST arguments", () => {
+	const blob = new Blob(["test"], { type: "audio/webm" });
+
+	it("appends extra param to formData", () => {
+		const settings = {
+			...DEFAULT_SETTINGS,
+			transcriptionExtraParams: [{ key: "diarize", value: "true" }],
+		};
+		const fd = buildFormData(settings, blob, "test.webm");
+		expect(fd.get("diarize")).toBe("true");
+	});
+
+	it("skips entry with empty key", () => {
+		const settings = {
+			...DEFAULT_SETTINGS,
+			transcriptionExtraParams: [{ key: "", value: "orphan" }],
+		};
+		const fd = buildFormData(settings, blob, "test.webm");
+		// get("") returns null when the entry was not appended
+		expect(fd.get("")).toBeNull();
+	});
+
+	it("skips entry with whitespace-only key", () => {
+		const settings = {
+			...DEFAULT_SETTINGS,
+			transcriptionExtraParams: [{ key: "   ", value: "orphan" }],
+		};
+		const fd = buildFormData(settings, blob, "test.webm");
+		// Neither the raw key nor the trimmed empty key should be present
+		expect(fd.get("   ")).toBeNull();
+		expect(fd.get("")).toBeNull();
+	});
+
+	it("trims whitespace from key before appending", () => {
+		const settings = {
+			...DEFAULT_SETTINGS,
+			transcriptionExtraParams: [
+				{ key: "  speaker_labels  ", value: "true" },
+			],
+		};
+		const fd = buildFormData(settings, blob, "test.webm");
+		expect(fd.get("speaker_labels")).toBe("true");
+	});
+
+	it("appends multiple params", () => {
+		const settings = {
+			...DEFAULT_SETTINGS,
+			transcriptionExtraParams: [
+				{ key: "diarize", value: "true" },
+				{ key: "speaker_labels", value: "true" },
+				{ key: "min_speakers", value: "2" },
+			],
+		};
+		const fd = buildFormData(settings, blob, "test.webm");
+		expect(fd.get("diarize")).toBe("true");
+		expect(fd.get("speaker_labels")).toBe("true");
+		expect(fd.get("min_speakers")).toBe("2");
+	});
+
+	it("empty array appends nothing extra", () => {
+		const settings = {
+			...DEFAULT_SETTINGS,
+			transcriptionExtraParams: [],
+		};
+		const fd = buildFormData(settings, blob, "test.webm");
+		// No extra keys appended
+		expect(fd.get("diarize")).toBeNull();
+		// Standard keys still present
+		expect(fd.get("file")).not.toBeNull();
+		expect(fd.get("model")).not.toBeNull();
 	});
 });
 
